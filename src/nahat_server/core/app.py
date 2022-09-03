@@ -1,20 +1,18 @@
-from logging import Logger
 from typing import Optional
-from fastapi import FastAPI
-from fastapi_utils.cbv import cbv
-from fastapi_utils.inferring_router import InferringRouter
+from fastapi import FastAPI, APIRouter
 from nahat_std.schemas.schema import QrCodeModel
-from nahat_server.core.lib.qr_generator import QrGenerator
-from nahat_server.core.lib.logger import logger
-router = InferringRouter()
+from nahat_server.core.qr_image_generator import QrImageGenerator
+from nahat_std.logger import logger
 
 
-@cbv(router)
-class Server:
+class NahatServer:
     def __init__(self):
         self.logger = logger
         self.__current_qr_code: Optional[str] = None
-        self.qr_generator = QrGenerator(logger=self.logger)
+        self.qr_generator = QrImageGenerator(logger=self.logger)
+        self.router = APIRouter()
+        self.router.add_api_route("/qr_code", self.update_qr_code, methods=["POST"])
+        self.router.add_api_route("/qr_validated", self.validated_qr_code, methods=["GET"])
 
     @property
     def current_qr_code(self):
@@ -29,12 +27,15 @@ class Server:
         self.qr_generator.generate_qr_image(self.current_qr_code, path='/tmp/lol.png')
 
     """ Endpoints """
-    @router.post("/qr_code")
+    def validated_qr_code(self):
+        self.logger.info("Notifying frontend")
+        return {"Qr Code Validated": "should present UI approve button"}
+
     def update_qr_code(self, qr_code: QrCodeModel):
         self.handle_update_qr_code_req(qr_code.code)
         return {"updated_qr_code", self.current_qr_code}
 
 
-Server()
+server = NahatServer()
 app = FastAPI()
-app.include_router(router)
+app.include_router(server.router)
